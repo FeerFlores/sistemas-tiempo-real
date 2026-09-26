@@ -1,0 +1,210 @@
+Diseño de un filtro FIR
+clc;
+clear;
+close all;
+
+[ audio, frecuencia_muestreo ] = audioread("file_example_WAV_1MG.wav");
+
+numero_muestras = size(audio, 1);
+numero_canales = size(audio, 2);
+
+duracion = numero_muestras / frecuencia_muestreo;
+
+fprintf("Frecuencia de muestreo: %d Hz\n", frecuencia_muestreo);
+fprintf("Número de muestras: %d\n", numero_muestras);
+fprintf("Número de canales: %d\n", numero_canales);
+fprintf("Duración: %.2f segundos\n", duracion);
+
+Duración definida
+duracion_segmento = 2;
+
+muestras_segmento = min( round(duracion_segmento * frecuencia_muestreo), numero_muestras );
+
+segmento = audio(1:muestras_segmento, :);
+Vector de tiempo
+tiempo = (0:muestras_segmento - 1) / frecuencia_muestreo;
+
+Gráficas de los canales
+figure;
+
+tiledlayout(2, 1);
+
+nexttile;
+
+plot(tiempo, segmento(:, 1));
+
+xlabel("Tiempo [s]");
+ylabel("Amplitud");
+title("Canal izquierdo");
+grid on;
+
+nexttile;
+
+plot(tiempo, segmento(:, 2));
+
+xlabel("Tiempo [s]");
+ylabel("Amplitud");
+title("Canal derecho");
+grid on;
+
+Cálculo de la transformada de Fourier
+canal_izquierdo = segmento(:, 1);
+canal_derecho = segmento(:, 2);
+
+N = length(canal_izquierdo);
+
+fft_izquierdo = fft(canal_izquierdo);
+fft_derecho = fft(canal_derecho);
+
+magnitud_izquierdo = abs(fft_izquierdo) / N;
+magnitud_derecho = abs(fft_derecho) / N;
+
+mitad = floor(N / 2) + 1;
+
+magnitud_izquierdo = magnitud_izquierdo(1:mitad);
+magnitud_derecho = magnitud_derecho(1:mitad);
+
+frecuencias = (0:mitad - 1) * frecuencia_muestreo / N;
+
+Gráfica de los espectros
+figure;
+
+tiledlayout(2, 1);
+
+nexttile;
+
+plot(frecuencias, magnitud_izquierdo);
+
+xlabel("Frecuencia [Hz]");
+ylabel("Magnitud");
+title("Espectro - Canal izquierdo");
+
+xlim([0 frecuencia_muestreo / 2]);
+grid on;
+
+nexttile;
+
+plot(frecuencias, magnitud_derecho);
+
+xlabel("Frecuencia [Hz]");
+ylabel("Magnitud");
+title("Espectro - Canal derecho");
+
+xlim([0 frecuencia_muestreo / 2]);
+grid on;
+
+Coeficientes del filtro
+orden = 100;
+
+frecuencia_corte = 5000;
+
+M = orden + 1;
+
+frecuencia_nyquist = frecuencia_muestreo / 2;
+
+frecuencia_normalizada = frecuencia_corte / frecuencia_nyquist;
+
+H = zeros(1, M);
+
+indice_corte = floor(frecuencia_corte * M / frecuencia_muestreo);
+
+H(1:indice_corte + 1) = 1;
+
+H(end - indice_corte + 1:end) = 1;
+
+figure;
+
+stem(H);
+
+xlabel("Índice k");
+ylabel("Magnitud");
+title("Coeficientes de la respuesta en frecuencia H[k]");
+
+grid on;
+
+IFFT
+h = ifft(H);
+
+h = real(h);
+
+h = fftshift(h);
+
+ventana = hamming(M).';
+
+h = h .* ventana;
+
+h = h / sum(h);
+
+figure;
+
+stem(0:M - 1, h);
+
+xlabel("Muestra n");
+ylabel("Amplitud");
+title("Respuesta al impulso del filtro FIR");
+
+grid on;
+
+Filtro por medio de la convolución
+filtrado_izquierdo = conv(canal_izquierdo, h, "same");
+
+filtrado_derecho = conv(canal_derecho, h, "same");
+
+audio_filtrado = [ filtrado_izquierdo, filtrado_derecho ];
+
+tiempo_visualizacion = 0.05;
+
+muestras_visualizacion = round( tiempo_visualizacion * frecuencia_muestreo );
+
+figure;
+
+plot( ...
+    tiempo(1:muestras_visualizacion), ...
+    canal_izquierdo(1:muestras_visualizacion), ...
+    "DisplayName", "Original" ...
+    );
+
+hold on;
+
+plot( ...
+    tiempo(1:muestras_visualizacion), ...
+    filtrado_izquierdo(1:muestras_visualizacion), ...
+    "DisplayName", "Filtrada" ...
+    );
+
+hold off;
+
+xlabel("Tiempo [s]");
+ylabel("Amplitud");
+
+title("Comparación temporal del filtrado");
+
+legend;
+grid on;
+
+Comparación de espectros
+fft_filtrada = fft(filtrado_izquierdo);
+
+magnitud_filtrada = abs(fft_filtrada) / N;
+
+magnitud_filtrada = magnitud_filtrada(1:mitad);
+
+figure;
+
+plot( frecuencias, magnitud_izquierdo, "DisplayName", "Original" );
+
+hold on;
+
+plot( frecuencias, magnitud_filtrada, "DisplayName", "Filtrada" );
+
+hold off;
+
+xlabel("Frecuencia [Hz]");
+ylabel("Magnitud");
+
+title("Espectro original vs. filtrado");
+
+xlim([0 10000]);
+
+legend;
+grid on;
